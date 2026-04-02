@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT Web Client Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --input-bg: #0f172a;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --success-hover: #059669;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --warning: #f59e0b;
+            --radius: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .lang-selector {
+            background-color: var(--panel-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            cursor: pointer;
+            width: auto;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--danger);
+            box-shadow: 0 0 8px var(--danger);
+            transition: all 0.3s ease;
+        }
+
+        .status-dot.connected {
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: minmax(300px, 340px) 1fr;
+            gap: 20px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border-radius: var(--radius);
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        .panel-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: var(--primary);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            min-width: 0; 
+        }
+
+        .form-row {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .form-row > .form-group {
+            flex: 1;
+        }
+
+        label {
+            font-size: 0.85em;
+            color: var(--text-muted);
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        input[type="text"], input[type="number"], input[type="password"], select, textarea {
+            width: 100%;
+            min-width: 0;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 9px 10px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            transition: border 0.2s;
+            box-sizing: border-box;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+            color: var(--text-muted);
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background-color 0.2s;
+            color: white;
+            white-space: nowrap;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-success { background-color: var(--success); }
+        .btn-success:hover:not(:disabled) { background-color: var(--success-hover); }
+        
+        .btn-danger { background-color: var(--danger); }
+        .btn-danger:hover:not(:disabled) { background-color: var(--danger-hover); }
+
+        .btn-primary { background-color: var(--primary); }
+        .btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); }
+
+        .btn-outline {
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+        .btn-outline:hover:not(:disabled) {
+            background-color: var(--border-color);
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        .actions-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .console {
+            background-color: #000;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85em;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .log-entry {
+            padding: 8px;
+            border-radius: 4px;
+            word-break: break-all;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-time { color: var(--text-muted); margin-right: 10px; }
+        .log-topic { color: var(--warning); font-weight: bold; margin-right: 10px; }
+        
+        .log-info { color: var(--primary); }
+        .log-success { color: var(--success); }
+        .log-error { color: var(--danger); }
+        .log-rx { background-color: rgba(16, 185, 129, 0.1); border-left: 3px solid var(--success); }
+        .log-tx { background-color: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--primary); }
+
+        .sub-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: var(--input-bg);
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            margin-top: 5px;
+            font-size: 0.85em;
+            word-break: break-all;
+        }
+        .sub-badge i {
+            cursor: pointer;
+            color: var(--danger);
+            margin-left: 10px;
+            flex-shrink: 0;
+        }
+
+        @media (max-width: 950px) {
+            .container { grid-template-columns: 1fr; overflow: auto; }
+            .actions-grid { grid-template-columns: 1fr; }
+            body { height: auto; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h2><i class="fa-solid fa-network-wired" style="color: var(--primary);"></i> MQTT Dashboard</h2>
+        <div class="header-controls">
+            <select id="langSelector" class="lang-selector" onchange="changeLanguage(this.value)">
+                <option value="es">Español</option>
+                <option value="en">English</option>
+                <option value="pt">Português</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+                <option value="zh">中文</option>
+            </select>
+            <div class="status-badge">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText" data-i18n="status_off">Desconectado</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="panel">
+            <div class="panel-title"><i class="fa-solid fa-sliders"></i> <span data-i18n="conn_title">Conexión</span></div>
+            
+            <div class="form-row">
+                <div class="form-group" style="flex: 1;">
+                    <label data-i18n="host">Host / IP</label>
+                    <input type="text" id="host" value="192.168.24.102">
+                </div>
+                <div class="form-group" style="flex: 0 0 80px;">
+                    <label data-i18n="port">Puerto</label>
+                    <input type="number" id="port" value="8083">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label data-i18n="path">Path</label>
+                <input type="text" id="path" value="/mqtt">
+            </div>
+
+            <div class="form-group">
+                <label data-i18n="client_id">Client ID</label>
+                <input type="text" id="clientId">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label data-i18n="user">Usuario</label>
+                    <input type="text" id="username" data-i18n-ph="optional">
+                </div>
+                <div class="form-group">
+                    <label data-i18n="pass">Contraseña</label>
+                    <input type="password" id="password" data-i18n-ph="optional">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <label class="checkbox-group">
+                    <input type="checkbox" id="ssl"> SSL (wss://)
+                </label>
+                <label class="checkbox-group">
+                    <input type="checkbox" id="cleanSession" checked> Clean Session
+                </label>
+            </div>
+
+            <div class="form-row" style="margin-top: 10px;">
+                <button id="btnConnect" class="btn-success" onclick="connect()" style="flex: 1;">
+                    <i class="fa-solid fa-plug"></i> <span data-i18n="connect">Conectar</span>
+                </button>
+                <button id="btnDisconnect" class="btn-danger" onclick="disconnect()" style="flex: 1;" disabled>
+                    <i class="fa-solid fa-power-off"></i> <span data-i18n="disconnect">Desconectar</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="actions-grid">
+                <div class="panel">
+                    <div class="panel-title"><i class="fa-solid fa-rss"></i> <span data-i18n="sub_title">Suscripción</span></div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 1;">
+                            <label data-i18n="topic">Topic</label>
+                            <input type="text" id="subTopic" data-i18n-ph="sub_ph">
+                        </div>
+                        <div class="form-group" style="flex: 0 0 60px;">
+                            <label>QoS</label>
+                            <select id="subQos">
+                                <option value="0">0</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn-primary" id="btnSubscribe" onclick="subscribe()" disabled>
+                        <i class="fa-solid fa-plus"></i> <span data-i18n="subscribe">Suscribirse</span>
+                    </button>
+                    
+                    <div style="margin-top: 10px;">
+                        <label data-i18n="active_subs">Suscripciones Activas:</label>
+                        <div id="subList" style="display: flex; flex-direction: column; gap: 5px;"></div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title"><i class="fa-solid fa-paper-plane"></i> <span data-i18n="pub_title">Publicar</span></div>
+                    <div class="form-group">
+                        <label data-i18n="topic">Topic</label>
+                        <input type="text" id="pubTopic" data-i18n-ph="pub_ph">
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="msg_payload">Mensaje (Payload)</label>
+                        <textarea id="pubMessage" placeholder='{"valor": 25}'></textarea>
+                    </div>
+                    <div class="form-row" style="align-items: flex-end;">
+                        <div class="form-group" style="flex: 0 0 60px;">
+                            <label>QoS</label>
+                            <select id="pubQos">
+                                <option value="0">0</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 0 0 70px;">
+                            <label class="checkbox-group" style="height: 38px;">
+                                <input type="checkbox" id="pubRetain"> Retain
+                            </label>
+                        </div>
+                        <button class="btn-primary" id="btnPublish" onclick="publish()" style="flex: 1;" disabled>
+                            <i class="fa-solid fa-share"></i> <span data-i18n="send">Enviar</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" style="overflow: hidden; padding-bottom: 0;">
+                <div class="panel-title" style="justify-content: space-between;">
+                    <span><i class="fa-solid fa-terminal"></i> <span data-i18n="console_title">Registro de Mensajes</span></span>
+                    <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8em;" onclick="clearConsole()">
+                        <i class="fa-solid fa-trash"></i> <span data-i18n="clear">Limpiar</span>
+                    </button>
+                </div>
+                <div class="console" id="console">
+                    <div class="log-entry log-info" id="initLog" data-i18n="waiting">Esperando conexión...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- i18n Diccionario ---
+        const i18n = {
+            es: {
+                status_off: "Desconectado", status_on: "Conectado", conn_title: "Conexión",
+                host: "Host / IP", port: "Puerto", path: "Path", client_id: "Client ID",
+                user: "Usuario", pass: "Contraseña", optional: "Opcional", connect: "Conectar",
+                disconnect: "Desconectar", sub_title: "Suscripción", topic: "Topic",
+                sub_ph: "ej. sensores/#", subscribe: "Suscribirse", active_subs: "Suscripciones Activas:",
+                pub_title: "Publicar", pub_ph: "ej. sensores/temperatura", msg_payload: "Mensaje (Payload)",
+                send: "Enviar", console_title: "Registro de Mensajes", clear: "Limpiar",
+                waiting: "Esperando conexión...", connecting: "Conectando a ", init_err: "Error de inicialización: ",
+                connected_msg: "¡Conexión establecida!", mqtt_err: "Error MQTT: ", conn_closed: "Conexión cerrada",
+                offline: "Cliente fuera de línea", err_sub_empty: "Introduce un topic para suscribirte",
+                sub_success: "Suscrito a: ", sub_err: "Error al suscribir: ", unsub_success: "Suscripción cancelada: ",
+                err_pub_empty: "Introduce un topic para publicar", pub_err: "Error al publicar: ", unsub_title: "Desuscribirse"
+            },
+            en: {
+                status_off: "Disconnected", status_on: "Connected", conn_title: "Connection",
+                host: "Host / IP", port: "Port", path: "Path", client_id: "Client ID",
+                user: "Username", pass: "Password", optional: "Optional", connect: "Connect",
+                disconnect: "Disconnect", sub_title: "Subscription", topic: "Topic",
+                sub_ph: "e.g. sensors/#", subscribe: "Subscribe", active_subs: "Active Subscriptions:",
+                pub_title: "Publish", pub_ph: "e.g. sensors/temp", msg_payload: "Message (Payload)",
+                send: "Send", console_title: "Message Log", clear: "Clear",
+                waiting: "Waiting for connection...", connecting: "Connecting to ", init_err: "Init error: ",
+                connected_msg: "Connection established!", mqtt_err: "MQTT Error: ", conn_closed: "Connection closed",
+                offline: "Client offline", err_sub_empty: "Enter a topic to subscribe",
+                sub_success: "Subscribed to: ", sub_err: "Subscribe error: ", unsub_success: "Unsubscribed from: ",
+                err_pub_empty: "Enter a topic to publish", pub_err: "Publish error: ", unsub_title: "Unsubscribe"
+            },
+            pt: {
+                status_off: "Desconectado", status_on: "Conectado", conn_title: "Conexão",
+                host: "Host / IP", port: "Porta", path: "Path", client_id: "Client ID",
+                user: "Usuário", pass: "Senha", optional: "Opcional", connect: "Conectar",
+                disconnect: "Desconectar", sub_title: "Assinatura", topic: "Tópico",
+                sub_ph: "ex. sensores/#", subscribe: "Assinar", active_subs: "Assinaturas Ativas:",
+                pub_title: "Publicar", pub_ph: "ex. sensores/temp", msg_payload: "Mensagem (Payload)",
+                send: "Enviar", console_title: "Registro de Mensagens", clear: "Limpar",
+                waiting: "Aguardando conexão...", connecting: "Conectando a ", init_err: "Erro de inicialização: ",
+                connected_msg: "Conexão estabelecida!", mqtt_err: "Erro MQTT: ", conn_closed: "Conexão fechada",
+                offline: "Cliente offline", err_sub_empty: "Insira um tópico para assinar",
+                sub_success: "Assinado a: ", sub_err: "Erro ao assinar: ", unsub_success: "Assinatura cancelada: ",
+                err_pub_empty: "Insira um tópico para publicar", pub_err: "Erro ao publicar: ", unsub_title: "Cancelar assinatura"
+            },
+            fr: {
+                status_off: "Déconnecté", status_on: "Connecté", conn_title: "Connexion",
+                host: "Hôte / IP", port: "Port", path: "Chemin", client_id: "Client ID",
+                user: "Utilisateur", pass: "Mot de passe", optional: "Optionnel", connect: "Connecter",
+                disconnect: "Déconnecter", sub_title: "Abonnement", topic: "Sujet",
+                sub_ph: "ex. capteurs/#", subscribe: "S'abonner", active_subs: "Abonnements Actifs:",
+                pub_title: "Publier", pub_ph: "ex. capteurs/temp", msg_payload: "Message (Charge utile)",
+                send: "Envoyer", console_title: "Journal des Messages", clear: "Effacer",
+                waiting: "En attente de connexion...", connecting: "Connexion à ", init_err: "Erreur d'initialisation: ",
+                connected_msg: "Connexion établie !", mqtt_err: "Erreur MQTT: ", conn_closed: "Connexion fermée",
+                offline: "Client hors ligne", err_sub_empty: "Entrez un sujet pour vous abonner",
+                sub_success: "Abonné à : ", sub_err: "Erreur d'abonnement : ", unsub_success: "Désabonnement de : ",
+                err_pub_empty: "Entrez un sujet pour publier", pub_err: "Erreur de publication : ", unsub_title: "Se désabonner"
+            },
+            de: {
+                status_off: "Getrennt", status_on: "Verbunden", conn_title: "Verbindung",
+                host: "Host / IP", port: "Port", path: "Pfad", client_id: "Client ID",
+                user: "Benutzer", pass: "Passwort", optional: "Optional", connect: "Verbinden",
+                disconnect: "Trennen", sub_title: "Abonnement", topic: "Thema",
+                sub_ph: "z.B. sensoren/#", subscribe: "Abonnieren", active_subs: "Aktive Abonnements:",
+                pub_title: "Veröffentlichen", pub_ph: "z.B. sensoren/temp", msg_payload: "Nachricht (Payload)",
+                send: "Senden", console_title: "Nachrichtenprotokoll", clear: "Löschen",
+                waiting: "Warten auf Verbindung...", connecting: "Verbinde mit ", init_err: "Init-Fehler: ",
+                connected_msg: "Verbindung hergestellt!", mqtt_err: "MQTT-Fehler: ", conn_closed: "Verbindung geschlossen",
+                offline: "Client offline", err_sub_empty: "Thema zum Abonnieren eingeben",
+                sub_success: "Abonniert: ", sub_err: "Abonnementfehler: ", unsub_success: "Abo gekündigt: ",
+                err_pub_empty: "Thema zum Veröffentlichen eingeben", pub_err: "Veröffentlichungsfehler: ", unsub_title: "Abbestellen"
+            },
+            zh: {
+                status_off: "未连接", status_on: "已连接", conn_title: "连接",
+                host: "主机 / IP", port: "端口", path: "路径", client_id: "客户端 ID",
+                user: "用户名", pass: "密码", optional: "可选", connect: "连接",
+                disconnect: "断开连接", sub_title: "订阅", topic: "主题",
+                sub_ph: "例如 sensors/#", subscribe: "订阅", active_subs: "活动订阅:",
+                pub_title: "发布", pub_ph: "例如 sensors/temp", msg_payload: "消息 (Payload)",
+                send: "发送", console_title: "消息日志", clear: "清除",
+                waiting: "等待连接...", connecting: "正在连接 ", init_err: "初始化错误: ",
+                connected_msg: "连接成功！", mqtt_err: "MQTT 错误: ", conn_closed: "连接已关闭",
+                offline: "客户端离线", err_sub_empty: "请输入要订阅的主题",
+                sub_success: "已订阅: ", sub_err: "订阅错误: ", unsub_success: "已取消订阅: ",
+                err_pub_empty: "请输入要发布的主题", pub_err: "发布错误: ", unsub_title: "取消订阅"
+            }
+        };
+
+        let currentLang = 'es';
+
+        function t(key) {
+            return i18n[currentLang][key] || key;
+        }
+
+        function changeLanguage(lang) {
+            currentLang = lang;
+            
+            // Textos fijos
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                el.innerText = t(key);
+            });
+
+            // Placeholders
+            document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+                const key = el.getAttribute('data-i18n-ph');
+                el.placeholder = t(key);
+            });
+
+            // Estado de conexión
+            const isConnected = document.getElementById('statusDot').classList.contains('connected');
+            document.getElementById('statusText').innerText = t(isConnected ? 'status_on' : 'status_off');
+
+            // Actualizar botones dinámicos (iconos de cancelar sub)
+            renderSubscriptions();
+        }
+
+        // --- Lógica MQTT ---
+        let client = null;
+        let subscriptions = [];
+
+        document.getElementById('clientId').value = 'web_client_' + Math.random().toString(16).substr(2, 8);
+
+        // Iniciar en español por defecto
+        changeLanguage('es');
+
+        function log(message, type = 'info', topic = '') {
+            const consoleEl = document.getElementById('console');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            
+            const time = new Date().toLocaleTimeString();
+            let html = `<span class="log-time">[${time}]</span>`;
+            
+            if (topic) {
+                html += `<span class="log-topic">${topic}</span>`;
+            }
+            
+            let displayMsg = message;
+            try {
+                if(typeof message === 'string' && (message.startsWith('{') || message.startsWith('['))) {
+                    const parsed = JSON.parse(message);
+                    displayMsg = JSON.stringify(parsed); 
+                }
+            } catch(e) {}
+
+            html += `<span>${displayMsg}</span>`;
+            entry.innerHTML = html;
+            
+            consoleEl.appendChild(entry);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function updateUIState(connected) {
+            document.getElementById('statusDot').className = connected ? 'status-dot connected' : 'status-dot';
+            document.getElementById('statusText').innerText = t(connected ? 'status_on' : 'status_off');
+            
+            document.getElementById('btnConnect').disabled = connected;
+            document.getElementById('btnDisconnect').disabled = !connected;
+            document.getElementById('btnSubscribe').disabled = !connected;
+            document.getElementById('btnPublish').disabled = !connected;
+            
+            const configInputs = ['host', 'port', 'path', 'clientId', 'username', 'password', 'ssl', 'cleanSession'];
+            configInputs.forEach(id => document.getElementById(id).disabled = connected);
+        }
+
+        function connect() {
+            const host = document.getElementById('host').value;
+            const port = document.getElementById('port').value;
+            const path = document.getElementById('path').value;
+            const ssl = document.getElementById('ssl').checked;
+            const protocol = ssl ? 'wss' : 'ws';
+            
+            const url = `${protocol}://${host}:${port}${path}`;
+            
+            const options = {
+                clientId: document.getElementById('clientId').value,
+                clean: document.getElementById('cleanSession').checked,
+                connectTimeout: 5000,
+            };
+
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            
+            if (user) options.username = user;
+            if (pass) options.password = pass;
+
+            log(`${t('connecting')}${url}...`, 'info');
+
+            try {
+                client = mqtt.connect(url, options);
+            } catch (error) {
+                log(`${t('init_err')}${error.message}`, 'error');
+                return;
+            }
+
+            client.on('connect', () => {
+                log(t('connected_msg'), 'success');
+                updateUIState(true);
+            });
+
+            client.on('error', (err) => {
+                log(`${t('mqtt_err')}${err}`, 'error');
+                client.end();
+            });
+
+            client.on('close', () => {
+                log(t('conn_closed'), 'error');
+                updateUIState(false);
+            });
+
+            client.on('offline', () => {
+                log(t('offline'), 'error');
+                updateUIState(false);
+            });
+
+            client.on('message', (topic, message) => {
+                log(message.toString(), 'rx', `📥 ${topic}`);
+            });
+        }
+
+        function disconnect() {
+            if (client) {
+                client.end();
+                subscriptions = [];
+                renderSubscriptions();
+            }
+        }
+
+        function subscribe() {
+            const topic = document.getElementById('subTopic').value;
+            const qos = parseInt(document.getElementById('subQos').value);
+
+            if (!topic) {
+                alert(t('err_sub_empty'));
+                return;
+            }
+
+            if (!subscriptions.includes(topic)) {
+                client.subscribe(topic, { qos }, (err) => {
+                    if (!err) {
+                        subscriptions.push(topic);
+                        renderSubscriptions();
+                        log(`${t('sub_success')}${topic} (QoS: ${qos})`, 'success');
+                    } else {
+                        log(`${t('sub_err')}${err}`, 'error');
+                    }
+                });
+            }
+        }
+
+        function unsubscribe(topic) {
+            client.unsubscribe(topic, (err) => {
+                if (!err) {
+                    subscriptions = subscriptions.filter(t => t !== topic);
+                    renderSubscriptions();
+                    log(`${t('unsub_success')}${topic}`, 'info');
+                }
+            });
+        }
+
+        function renderSubscriptions() {
+            const list = document.getElementById('subList');
+            list.innerHTML = '';
+            subscriptions.forEach(topic => {
+                const el = document.createElement('div');
+                el.className = 'sub-badge';
+                el.innerHTML = `
+                    <span>${topic}</span>
+                    <i class="fa-solid fa-times-circle" onclick="unsubscribe('${topic}')" title="${t('unsub_title')}"></i>
+                `;
+                list.appendChild(el);
+            });
+        }
+
+        function publish() {
+            const topic = document.getElementById('pubTopic').value;
+            const message = document.getElementById('pubMessage').value;
+            const qos = parseInt(document.getElementById('pubQos').value);
+            const retain = document.getElementById('pubRetain').checked;
+
+            if (!topic) {
+                alert(t('err_pub_empty'));
+                return;
+            }
+
+            client.publish(topic, message, { qos, retain }, (err) => {
+                if (!err) {
+                    log(message, 'tx', `📤 ${topic}`);
+                } else {
+                    log(`${t('pub_err')}${err}`, 'error');
+                }
+            });
+        }
+
+        function clearConsole() {
+            document.getElementById('console').innerHTML = '';
+        }
+    </script>
+</body>
+</html>
