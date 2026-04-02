@@ -2,7 +2,7 @@
 
 Otro cliente MQTT por WebSockets. Nada nuevo bajo el sol, pero está todo contenido en un solo archivo HTML y visualmente cumple. Útil para salir del paso.
 
-🔗 **[Ver la aplicación en vivo (GitHub Pages)](https://soyunomas.github.io/simple-mqtt-web-client/)**
+🔗 **[Ver la aplicación en vivo (GitHub Pages)](https://soyunomas.github.io/Simple-MQTT-Web-Client/)**
 
 ![Screenshot del Dashboard](./screenshot.png)
 
